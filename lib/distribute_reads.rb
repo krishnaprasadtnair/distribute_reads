@@ -6,6 +6,7 @@ require "makara"
 require "distribute_reads/appropriate_pool"
 require "distribute_reads/cache_store"
 require "distribute_reads/global_methods"
+require "distribute_reads/pool"
 require "distribute_reads/version"
 
 module DistributeReads
@@ -160,6 +161,7 @@ module DistributeReads
 end
 
 Makara::Proxy.prepend DistributeReads::AppropriatePool
+Makara::Pool.prepend DistributeReads::Pool
 Object.include DistributeReads::GlobalMethods
 Object.send :private, :distribute_reads
 

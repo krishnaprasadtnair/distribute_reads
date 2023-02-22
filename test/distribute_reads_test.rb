@@ -139,7 +139,7 @@ class DistributeReadsTest < Minitest::Test
 
   def test_active_job
     TestJob.perform_now
-    assert_equal "replica", $current_database
+    assert_match "replica", $current_database
   end
 
   def test_relation
@@ -217,10 +217,10 @@ class DistributeReadsTest < Minitest::Test
   def test_by_default_active_job
     by_default do
       ReadWriteJob.perform_now
-      assert_equal "replica", $current_database
+      assert_match "replica", $current_database
 
       ReadWriteJob.perform_now
-      assert_equal "replica", $current_database
+      assert_match "replica", $current_database
     end
   end
 
@@ -316,6 +316,44 @@ class DistributeReadsTest < Minitest::Test
   def test_nil
     assert !nil.respond_to?(:distribute_reads)
   end
+  
+  def test_name
+    distribute_reads(name: :replica2) do
+      assert_replica2
+    end
+  end
+
+  def test_name_bad
+    error = assert_raises(ArgumentError) do
+      distribute_reads(name: :replica3) do
+        assert_replica2
+      end
+    end
+    assert_equal "Unknown replica: replica3", error.message
+  end
+
+  def test_name_replica_blacklisted
+    with_replica2_blacklisted do
+      distribute_reads(name: :replica) do
+        assert_replica1
+      end
+
+      # falls back to primary rather than a different replica
+      distribute_reads(name: :replica2) do
+        assert_primary
+      end
+    end
+  end
+
+  def test_name_no_failover_replica_blacklisted
+    with_replica2_blacklisted do
+      assert_raises DistributeReads::NoReplicasAvailable do
+        distribute_reads(name: :replica2, failover: false) do
+          run_query
+        end
+      end
+    end
+  end
 
   private
 
@@ -339,6 +377,12 @@ class DistributeReadsTest < Minitest::Test
 
   def with_replicas_blacklisted
     ActiveRecord::Base.connection.instance_variable_get(:@slave_pool).stub(:completely_blacklisted?, true) do
+      yield
+    end
+  end
+
+  def with_replica2_blacklisted
+    ActiveRecord::Base.connection.instance_variable_get(:@slave_pool).instance_variable_get(:@named_wrappers)["replica2"].stub(:_makara_blacklisted?, true) do
       yield
     end
   end
@@ -370,7 +414,15 @@ class DistributeReadsTest < Minitest::Test
   end
 
   def assert_replica(prefix: nil)
+    assert_match "replica", current_database(prefix: prefix)
+  end
+
+  def assert_replica1(prefix: nil)
     assert_equal "replica", current_database(prefix: prefix)
+  end
+
+  def assert_replica2(prefix: nil)
+    assert_equal "replica2", current_database(prefix: prefix)
   end
 
   def run_query

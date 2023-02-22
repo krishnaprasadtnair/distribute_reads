@@ -29,6 +29,10 @@ ActiveRecord::Base.establish_connection(
       {
         name: "replica",
         database: "distribute_reads_test_replica"
+      },
+      {
+        name: "replica2",
+        database: "distribute_reads_test_replica2"
       }
     ]
   }
